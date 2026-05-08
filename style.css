@@ -99,7 +99,7 @@ label {
   font-weight: 900;
 }
 
-/* 重要：checkbox / radio には通常入力欄の幅100%指定をかけない */
+/* checkbox / radio / range には通常入力欄の幅100%指定をかけない */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 textarea,
 select {
@@ -325,22 +325,23 @@ input[type="range"] {
   margin: 10px 0 18px;
 }
 
-/* ここが今回の主修正：チェックボックスの大きさと配置を固定 */
+/* チェックボックスを左寄せし、テキスト幅を広く取る */
 .check {
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  gap: 14px;
-  align-items: start;
-  padding: 16px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 14px 10px;
   border: 1px solid #d7e0d8;
   border-radius: 18px;
   background: #f7faf7;
   cursor: pointer;
 }
 
+/* checkboxの大きさを固定 */
 .check input[type="checkbox"] {
   appearance: auto;
   -webkit-appearance: checkbox;
+  flex: 0 0 22px;
   width: 22px;
   height: 22px;
   min-width: 22px;
@@ -349,13 +350,14 @@ input[type="range"] {
   max-height: 22px;
   margin: 3px 0 0 0;
   padding: 0;
-  border-radius: 4px;
   accent-color: var(--green);
   cursor: pointer;
 }
 
 .check span {
   display: block;
+  flex: 1;
+  min-width: 0;
   line-height: 1.6;
 }
 
@@ -365,6 +367,7 @@ input[type="range"] {
 }
 
 .check small {
+  display: block;
   color: #44554d;
   font-size: 0.95rem;
 }
@@ -545,17 +548,17 @@ th {
   }
 
   .check {
-    grid-template-columns: 26px 1fr;
-    gap: 12px;
-    padding: 14px;
+    gap: 10px;
+    padding: 13px 12px 13px 8px;
   }
 
   .check input[type="checkbox"] {
-    width: 21px;
-    height: 21px;
-    min-width: 21px;
-    min-height: 21px;
-    max-width: 21px;
-    max-height: 21px;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    min-height: 20px;
+    max-width: 20px;
+    max-height: 20px;
   }
 }
