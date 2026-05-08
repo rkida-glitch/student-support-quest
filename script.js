@@ -172,11 +172,75 @@ const S = {
 
 const $ = id => document.getElementById(id);
 
-function show(id, badge) {
+let currentScreenId = "start";
+let currentBadge = "START";
+let navHistory = [];
+
+function show(id, badge, options = {}) {
+  const push = options.push !== false;
+
+  if (push && currentScreenId && currentScreenId !== id) {
+    navHistory.push({
+      screenId: currentScreenId,
+      badge: currentBadge,
+      mi: S.mi
+    });
+  }
+
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
   $(id).classList.add("active");
+
   $("stage").textContent = badge;
+
+  currentScreenId = id;
+  currentBadge = badge;
+
+  updateBackButton();
   window.scrollTo(0, 0);
+}
+
+function goBack() {
+  if (!navHistory.length) return;
+
+  const prev = navHistory.pop();
+
+  // ミッション番号も復元する
+  S.mi = prev.mi;
+
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(prev.screenId).classList.add("active");
+
+  $("stage").textContent = prev.badge;
+
+  currentScreenId = prev.screenId;
+  currentBadge = prev.badge;
+
+  updateBackButton();
+  window.scrollTo(0, 0);
+}
+
+function updateBackButton() {
+  const btn = $("backBtn");
+  if (!btn) return;
+
+  btn.style.display = navHistory.length ? "inline-block" : "none";
+}
+
+function createBackButton() {
+  if ($("backBtn")) return;
+
+  const stage = $("stage");
+  if (!stage) return;
+
+  const btn = document.createElement("button");
+  btn.id = "backBtn";
+  btn.type = "button";
+  btn.className = "btn secondary back-btn";
+  btn.textContent = "← 戻る";
+  btn.style.display = "none";
+  btn.onclick = goBack;
+
+  stage.parentElement.insertBefore(btn, stage);
 }
 
 function selCards() {
