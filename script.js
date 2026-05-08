@@ -645,6 +645,9 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+createBackButton();
+updateBackButton();
+
 // イベント設定
 $("startBtn").onclick = () => show("team", "TEAM");
 
