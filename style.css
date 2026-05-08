@@ -155,6 +155,11 @@ input[type="range"] {
   background: #d6c7a8;
 }
 
+.back-btn {
+  margin-top: 0;
+  white-space: nowrap;
+}
+
 .sticky {
   position: sticky;
   top: 0;
@@ -503,6 +508,12 @@ th {
   .badge {
     margin-top: 12px;
     display: inline-block;
+  }
+
+  .back-btn {
+  width: auto;
+  margin-top: 12px;
+  margin-right: 8px;
   }
 
   .sticky {
