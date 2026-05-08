@@ -1,7 +1,270 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>教員用ダッシュボード</title><link rel="stylesheet" href="style.css"></head><body><div class="app"><header class="topbar"><div><p class="kicker">学生支援クエスト</p><h1>教員用ダッシュボード</h1><p>提出状況・得点・チームタイプ・神アイテムを確認します。</p></div><button id="reload" class="btn primary">更新</button></header><section class="panel"><div class="grid3"><div class="box"><b>提出チーム数</b><div class="big" id="teamCount">-</div></div><div class="box"><b>平均点</b><div class="big" id="avgScore">-</div></div><div class="box"><b>最高点</b><div class="big" id="maxScore">-</div></div></div><h2>チーム別一覧</h2><div style="overflow:auto"><table id="teamTable"></table></div><h2>チームタイプ分布</h2><div id="typeDist"></div><h2>神アイテムランキング</h2><div id="godRank"></div><p id="status" class="success"></p></section></div><script src="config.js"></script><script>
-function jsonp(url,cbName){return new Promise((resolve,reject)=>{window[cbName]=(data)=>{resolve(data);delete window[cbName];script.remove()};const script=document.createElement('script');script.onerror=()=>reject(new Error('読み込み失敗'));script.src=url+(url.includes('?')?'&':'?')+'callback='+cbName+'&_='+Date.now();document.body.appendChild(script)})}
-function countBy(arr,key){const o={};arr.forEach(x=>{const v=x[key]||'未設定';o[v]=(o[v]||0)+1});return o}
-function renderList(id,obj){const e=Object.entries(obj).sort((a,b)=>b[1]-a[1]);document.getElementById(id).innerHTML=e.length?e.map(([k,v])=>`<div class="box"><b>${k}</b>：${v}</div>`).join(''):'<p>まだデータがありません。</p>'}
-async function loadDashboard(){const st=document.getElementById('status');if(!GAS_WEB_APP_URL||GAS_WEB_APP_URL.includes('PASTE_')){st.textContent='config.jsにGAS_WEB_APP_URLを設定してください。';return}st.textContent='読み込み中...';try{const url=GAS_WEB_APP_URL+'?action=summary&eventCode='+encodeURIComponent(EVENT_CODE);const data=await jsonp(url,'dashboardCallback');const rows=data.rows||[];document.getElementById('teamCount').textContent=rows.length;const scores=rows.map(r=>Number(r.totalScore||0));document.getElementById('avgScore').textContent=scores.length?(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1):'-';document.getElementById('maxScore').textContent=scores.length?Math.max(...scores):'-';document.getElementById('teamTable').innerHTML='<tr><th>時刻</th><th>チーム</th><th>得点</th><th>タイプ</th><th>神アイテム</th></tr>'+rows.map(r=>`<tr><td>${r.submittedAt||''}</td><td>${r.teamName||''}</td><td>${r.totalScore||0}</td><td>${r.teamTypeTitle||''}</td><td>${r.godItem||''}</td></tr>`).join('');renderList('typeDist',countBy(rows,'teamTypeTitle'));renderList('godRank',countBy(rows,'godItem'));st.textContent='更新しました。'}catch(e){st.textContent='読み込みに失敗しました。GASの公開設定とURLを確認してください。'}}
-document.getElementById('reload').onclick=loadDashboard;loadDashboard();
-</script></body></html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>教員用ダッシュボード｜学生支援クエスト</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .dashboard-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}
+    .summary-card{background:#fff7da;border:1px solid #e0c56f;border-radius:16px;padding:16px}
+    .summary-card b{display:block;margin-bottom:6px}.summary-card .big{font-size:2.6rem;line-height:1;color:#1f7a5c;font-weight:1000}
+    .dashboard-table-wrap{overflow:auto;border-radius:14px;border:1px solid #ddd;background:#fff}
+    .dashboard-table{width:100%;border-collapse:collapse;min-width:760px}
+    .dashboard-table th,.dashboard-table td{border-bottom:1px solid #e5e5e5;padding:10px 9px;text-align:left;vertical-align:top}
+    .dashboard-table th{background:#13283a;color:#fff;position:sticky;top:0;z-index:1}.dashboard-table tr:nth-child(even) td{background:#f8faf7}
+    .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:999px;background:#e8f4ec;color:#176048;font-weight:1000}
+    .score-badge{display:inline-block;min-width:4rem;text-align:center;border-radius:999px;padding:6px 10px;background:#1f7a5c;color:#fff;font-weight:1000}
+    .chart-list{display:grid;gap:10px;margin:10px 0 22px}.chart-row{background:#fffdf8;border:1px solid #ded3bd;border-radius:14px;padding:11px 12px}
+    .chart-row-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;font-weight:900;margin-bottom:7px}
+    .chart-label{overflow-wrap:anywhere}.chart-value{color:#1f7a5c;font-weight:1000}.chart-track{height:16px;background:#e4dcc8;border-radius:999px;overflow:hidden}
+    .chart-fill{height:100%;background:#1f7a5c;border-radius:999px;min-width:4px;transition:width .25s ease}
+    .empty-message{padding:16px;background:#f8f4e9;border-radius:14px;color:#607066}.dashboard-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    @media(max-width:820px){.dashboard-summary{grid-template-columns:1fr}.dashboard-actions{display:block}.dashboard-actions .btn{width:100%}.summary-card .big{font-size:2.2rem}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div>
+      <p class="kicker">学生支援クエスト</p>
+      <h1>教員用ダッシュボード</h1>
+      <p>提出状況・得点・チームタイプ・神アイテムを確認します。</p>
+    </div>
+    <button id="reload" class="btn primary">更新</button>
+  </header>
+
+  <section class="panel">
+    <div class="dashboard-actions">
+      <button id="copySummary" class="btn secondary">集計結果をコピー</button>
+    </div>
+
+    <div class="dashboard-summary">
+      <div class="summary-card"><b>提出チーム数</b><div class="big" id="teamCount">-</div></div>
+      <div class="summary-card"><b>平均点</b><div class="big" id="avgScore">-</div></div>
+      <div class="summary-card"><b>最高点</b><div class="big" id="maxScore">-</div></div>
+    </div>
+
+    <h2>チーム別一覧</h2>
+    <p class="hint">得点が高い順に表示しています。</p>
+    <div class="dashboard-table-wrap">
+      <table id="teamTable" class="dashboard-table"></table>
+    </div>
+
+    <h2>チームタイプ分布</h2>
+    <div id="typeDist" class="chart-list"></div>
+
+    <h2>神アイテムランキング</h2>
+    <div id="godRank" class="chart-list"></div>
+
+    <p id="status" class="success"></p>
+  </section>
+</div>
+
+<script src="config.js"></script>
+<script>
+let latestRows = [];
+
+function jsonp(url, cbName) {
+  return new Promise((resolve, reject) => {
+    window[cbName] = (data) => {
+      resolve(data);
+      delete window[cbName];
+      script.remove();
+    };
+    const script = document.createElement('script');
+    script.onerror = () => reject(new Error('読み込みに失敗しました'));
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName + '&_=' + Date.now();
+    document.body.appendChild(script);
+  });
+}
+
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function sortRowsByScore(rows) {
+  return [...rows].sort((a, b) => toNumber(b.totalScore) - toNumber(a.totalScore));
+}
+
+function countBy(rows, key) {
+  const counts = {};
+  rows.forEach(row => {
+    const value = row[key] || '未設定';
+    counts[value] = (counts[value] || 0) + 1;
+  });
+  return counts;
+}
+
+function sortedEntries(counts) {
+  return Object.entries(counts).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return String(a[0]).localeCompare(String(b[0]), 'ja');
+  });
+}
+
+function renderBarChart(elId, counts) {
+  const el = document.getElementById(elId);
+  const entries = sortedEntries(counts);
+
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty-message">まだデータがありません。</div>';
+    return;
+  }
+
+  const max = Math.max(...entries.map(([, value]) => value), 1);
+
+  el.innerHTML = entries.map(([label, value]) => {
+    const width = (value / max) * 100;
+    return `
+      <div class="chart-row">
+        <div class="chart-row-head">
+          <span class="chart-label">${escapeHtml(label)}</span>
+          <span class="chart-value">${value}チーム</span>
+        </div>
+        <div class="chart-track">
+          <div class="chart-fill" style="width:${width}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderTable(rows) {
+  const table = document.getElementById('teamTable');
+
+  if (!rows.length) {
+    table.innerHTML = `
+      <tr>
+        <th>順位</th>
+        <th>チーム</th>
+        <th>得点</th>
+        <th>チームタイプ</th>
+        <th>神アイテム</th>
+        <th>Mission 1</th>
+        <th>ピンチ</th>
+        <th>Mission 2</th>
+      </tr>
+      <tr><td colspan="8">まだ提出データがありません。</td></tr>
+    `;
+    return;
+  }
+
+  table.innerHTML = `
+    <tr>
+      <th>順位</th>
+      <th>チーム</th>
+      <th>得点</th>
+      <th>チームタイプ</th>
+      <th>神アイテム</th>
+      <th>Mission 1</th>
+      <th>ピンチ</th>
+      <th>Mission 2</th>
+    </tr>
+    ${rows.map((row, index) => `
+      <tr>
+        <td><span class="rank-badge">${index + 1}</span></td>
+        <td><strong>${escapeHtml(row.teamName || '')}</strong></td>
+        <td><span class="score-badge">${toNumber(row.totalScore)}</span></td>
+        <td>${escapeHtml(row.teamTypeTitle || '')}</td>
+        <td>${escapeHtml(row.godItem || '')}</td>
+        <td>${toNumber(row.mission1Score)}</td>
+        <td>${toNumber(row.pinchScore)}</td>
+        <td>${toNumber(row.mission2Score)}</td>
+      </tr>
+    `).join('')}
+  `;
+}
+
+function renderSummary(rows) {
+  document.getElementById('teamCount').textContent = rows.length;
+  const scores = rows.map(row => toNumber(row.totalScore));
+  const avg = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+  const max = scores.length ? Math.max(...scores) : null;
+  document.getElementById('avgScore').textContent = avg === null ? '-' : avg.toFixed(1);
+  document.getElementById('maxScore').textContent = max === null ? '-' : String(max);
+}
+
+async function loadDashboard() {
+  const status = document.getElementById('status');
+
+  if (!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes('PASTE_')) {
+    status.textContent = 'config.jsにGAS_WEB_APP_URLを設定してください。';
+    return;
+  }
+
+  status.textContent = '読み込み中...';
+  const url = GAS_WEB_APP_URL + '?action=summary&eventCode=' + encodeURIComponent(EVENT_CODE);
+
+  try {
+    const data = await jsonp(url, 'dashboardCallback');
+    const rows = sortRowsByScore(data.rows || []);
+    latestRows = rows;
+    renderSummary(rows);
+    renderTable(rows);
+    renderBarChart('typeDist', countBy(rows, 'teamTypeTitle'));
+    renderBarChart('godRank', countBy(rows, 'godItem'));
+    status.textContent = '更新しました。';
+  } catch (error) {
+    status.textContent = '読み込みに失敗しました。GASの公開設定、URL、EVENT_CODEを確認してください。';
+  }
+}
+
+function buildSummaryText(rows) {
+  const lines = [];
+  lines.push('【学生支援クエスト 集計結果】');
+  lines.push(`提出チーム数：${rows.length}`);
+
+  const scores = rows.map(row => toNumber(row.totalScore));
+  if (scores.length) {
+    lines.push(`平均点：${(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)}`);
+    lines.push(`最高点：${Math.max(...scores)}`);
+  }
+
+  lines.push('');
+  lines.push('■ チーム別一覧（得点順）');
+  rows.forEach((row, index) => {
+    lines.push(`${index + 1}. ${row.teamName || ''}：${toNumber(row.totalScore)}点／${row.teamTypeTitle || ''}／神アイテム：${row.godItem || ''}`);
+  });
+
+  lines.push('');
+  lines.push('■ チームタイプ分布');
+  sortedEntries(countBy(rows, 'teamTypeTitle')).forEach(([label, count]) => {
+    lines.push(`${label}：${count}チーム`);
+  });
+
+  lines.push('');
+  lines.push('■ 神アイテムランキング');
+  sortedEntries(countBy(rows, 'godItem')).forEach(([label, count]) => {
+    lines.push(`${label}：${count}チーム`);
+  });
+
+  return lines.join('\n');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+document.getElementById('reload').addEventListener('click', loadDashboard);
+
+document.getElementById('copySummary').addEventListener('click', async () => {
+  const status = document.getElementById('status');
+  try {
+    await navigator.clipboard.writeText(buildSummaryText(latestRows));
+    status.textContent = '集計結果をコピーしました。';
+  } catch (error) {
+    status.textContent = 'コピーに失敗しました。';
+  }
+});
+
+loadDashboard();
+</script>
+</body>
+</html>
